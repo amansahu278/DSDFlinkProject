@@ -4,6 +4,7 @@ import nu.pattern.OpenCV;
 import org.apache.flink.shaded.guava31.com.google.common.primitives.Bytes;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
+import org.opencv.core.MatOfInt;
 import org.opencv.imgcodecs.Imgcodecs;
 
 import java.util.Arrays;
@@ -29,6 +30,7 @@ public class Helpers {
         return Bytes.concat(convertIntToByteArray(fourcc), convertIntToByteArray(fps), frameToByteArray(frame));
     }
 
+
     public static int getFpsFromByteArray(byte[] array){
         byte[] subarr = new byte[4];
         for(int i = 4; i<8; i++){
@@ -47,7 +49,7 @@ public class Helpers {
 
     public static byte[] frameToByteArray(Mat frame){
         MatOfByte matOfByte = new MatOfByte();
-        Imgcodecs.imencode(".jpg", frame, matOfByte);
+        Imgcodecs.imencode(".png", frame, matOfByte);
         return matOfByte.toArray();
     }
 

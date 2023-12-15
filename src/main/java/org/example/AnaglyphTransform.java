@@ -1,35 +1,123 @@
 package org.example;
 
 import nu.pattern.OpenCV;
+
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.OpenCVFrameConverter;
+
 import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.videoio.VideoCapture;
+import org.opencv.videoio.VideoWriter;
+import org.opencv.videoio.Videoio;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.sql.Array;
-import java.util.ArrayList;
-import java.util.List;
+import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_MPEG4;
 
-import static org.opencv.imgproc.Imgproc.COLOR_BGR2RGB;
 
 public class AnaglyphTransform {
 
     public static void main(String[] args) {
         OpenCV.loadLocally();
         // Load an example colored image
-        Mat coloredImage = Imgcodecs.imread("/Users/amansahu/Downloads/DSC_2935.JPG", Imgcodecs.IMREAD_COLOR);
-        Imgproc.cvtColor(coloredImage, coloredImage, Imgproc.COLOR_BGR2RGB);
+//        Mat coloredImage = Imgcodecs.imread("/Users/amansahu/Downloads/DSC_2935.JPG", Imgcodecs.IMREAD_COLOR);
+//        Imgproc.cvtColor(coloredImage, coloredImage, Imgproc.COLOR_BGR2RGB);
+//
+//        // Apply the anaglyph transformation
+//        Mat anaglyphImage = applyAnaglyphTransform(coloredImage);
+//
+//        // Save the anaglyph image to a file
+//        Imgproc.cvtColor(anaglyphImage, anaglyphImage, Imgproc.COLOR_RGB2BGR);
+//        Imgcodecs.imwrite("/Users/amansahu/COMP 6231/dockerLab/anaglyph_image.jpg", anaglyphImage);
 
-        // Apply the anaglyph transformation
-        Mat anaglyphImage = applyAnaglyphTransform(coloredImage);
+        String inPath = "/Users/amansahu/COMP 6231/projectowrks/sample.mp4";
+        String outPath = "/Users/amansahu/COMP 6231/projectowrks/out.mp4";
 
-        // Save the anaglyph image to a file
-        Imgproc.cvtColor(anaglyphImage, anaglyphImage, Imgproc.COLOR_RGB2BGR);
-        Imgcodecs.imwrite("/Users/amansahu/COMP 6231/dockerLab/anaglyph_image.jpg", anaglyphImage);
+        // Create FFmpegFrameGrabber
+        FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(inPath);
+        OpenCVFrameConverter.ToMat converterToCVMat = new OpenCVFrameConverter.ToMat();
+        OpenCVFrameConverter.ToOrgOpenCvCoreMat converter2 = new OpenCVFrameConverter.ToOrgOpenCvCoreMat();
+//        org.opencv.core.Mat cvmat = converter2.convert(converter1.convert(mat));
+//        Mat mat2 = converter2.convert(converter1.convert(cvmat));
+
+        try {
+            // Start grabbing
+            grabber.start();
+
+            // Get video properties
+            int width = grabber.getImageWidth();
+            int height = grabber.getImageHeight();
+            double frameRate = grabber.getFrameRate();
+            int videoCoded = grabber.getVideoCodec();
+            int videoBitRate = grabber.getVideoBitrate();
+//            int pixelFormat = grabber.getPixelFormat();
+
+            // Create FFmpegFrameRecorder for output video
+            FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(outPath, width, height);
+            recorder.setFormat("mp4");
+            recorder.setFrameRate(frameRate);
+            recorder.setVideoCodec(videoCoded);
+            recorder.setVideoBitrate(videoBitRate);
+//            recorder.setPixelFormat(pixelFormat);
+            recorder.setAudioChannels(grabber.getAudioChannels());
+
+            // Start recording
+            recorder.start();
+
+            // Grab and process frames until the end of the video
+            Frame frame;
+            while ((frame = grabber.grab()) != null) {
+                // Process the frame (replace this with your actual processing logic)
+                // Example: You can apply some image processing to 'frame' here...
+                // Write the processed frame to the output video
+
+                Mat mat = converter2.convert(frame);
+                if(mat != null){
+                    mat = applyAnaglyphTransform(mat);
+                    frame = converterToCVMat.convert(mat);
+                }
+                recorder.record(frame);
+            }
+
+            // Stop recording
+            recorder.stop();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Stop the grabber when done
+            try {
+                grabber.stop();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+//
+//        VideoCapture videoCapture = new VideoCapture(inPath);
+//        VideoWriter videoWriter = null;
+//        Mat frame = new Mat();
+//        Size frameSize = new Size((int) videoCapture.get(Videoio.CAP_PROP_FRAME_WIDTH),
+//                (int) videoCapture.get(Videoio.CAP_PROP_FRAME_HEIGHT));
+//
+//        if(!videoCapture.isOpened()){
+//            System.out.println("Cannot open source video");
+//        }
+//
+//        System.out.println("FPS "+ Math.ceil(videoCapture.get(Videoio.CAP_PROP_FPS)));
+//        while(videoCapture.read(frame)){
+//            if(videoWriter == null){
+//                videoWriter = new VideoWriter(outPath, VideoWriter.fourcc('X', 'V', 'I', 'D'), 30, frameSize);
+//            }
+//            if(!videoWriter.isOpened()){
+//                System.out.println("File not opened");
+//                return;
+//            }
+////            Mat out = Helpers.getFrameFromByteArray(anaglyphTransform(Helpers.frameToByteArray(frame)));
+////            videoWriter.write(out);
+//            videoWriter.write(frame);
+//        }
+//        videoWriter.release();
     }
 
     public static byte[] anaglyphTransform(byte[] value){
@@ -61,16 +149,13 @@ public class AnaglyphTransform {
         Mat rightROI = rightView.submat(rightRect);
 
         // Transform left and right views
-        Mat newLeftView = new Mat();
-        Core.transform(leftROI, newLeftView, imgtf1);
+        Core.transform(leftROI, leftView, imgtf1);
+        Core.transform(rightROI, rightView, imgtf2);
 
-        Mat newRightView = new Mat();
-        Core.transform(rightROI, newRightView, imgtf2);
+        // Combine left and right views and store on leftView
+        Core.addWeighted(leftView, 1, rightView, 1, 1, leftView);
 
-        // Combine left and right views
-        Mat anaglyph = new Mat();
-        Core.addWeighted(newLeftView, 1, newRightView, 1, 1, anaglyph);
-
-        return anaglyph;
+        leftView.convertTo(leftView, CvType.CV_8S);
+        return leftView;
     }
 }
