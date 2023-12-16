@@ -1,13 +1,14 @@
 import time
-
+import sys
 from kafka import KafkaProducer
-import pickle
-import cv2
 
+import cv2
+import base64
 
 def encode_frame(frame):
-    return pickle.dumps(frame, protocol=pickle.HIGHEST_PROTOCOL)
-
+    _, buffer = cv2.imencode('.png', frame)
+    encoded = base64.b64encode(buffer.tobytes())
+    return encoded
 
 class VideoSource:
     def __init__(self, video_path):
@@ -26,8 +27,9 @@ class VideoSource:
                 break
             frame_bytes = encode_frame(frame)
             producer.send(topic_name, frame_bytes)
-            time.sleep(2)
-        # producer.send(topic_name, b"EOF")
+            # time.sleep(0.2)
+
+        producer.send(topic_name, b"EOF")
         cap.release()
 
 
@@ -35,10 +37,8 @@ def custom_byte_serializer(data):
     return data
 
 
-producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
-                         value_serializer=custom_byte_serializer)
-
 if __name__ == '__main__':
-    video_in_path = "/Users/amansahu/COMP 6231/projectowrks/sample.mp4"
+    video_in_path = sys.argv[1]
+    producer = KafkaProducer(bootstrap_servers=['kafka-broker:9092'])
     source = VideoSource(video_in_path)
-    source.run(producer, "my-topic")
+    source.run(producer, "in-topic")
