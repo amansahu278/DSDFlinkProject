@@ -1,5 +1,23 @@
 # Justfile
 
+# Get the kafka running
+setup-kafka:
+    sudo docker compose -f docker-compose.yml up zookeeper kafka
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic out-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092" 
+
+setup-kafka-producer:
+    docker build -t kafka-sumer-img -f kafkaDockerfile .
+    docker run --name kafka-producer --network flinkplayground_projectnetwork -p 8001:8001 -v .:/data -it kafka-sumer-img bash
+    # sudo docker compose -f docker-compose.yml up producer
+    # docker exec -it kafka-consumer bash -c "python /app/kafkaProducer.py"
+
+setup-kafka-consumer:
+    docker build -t kafka-sumer-img -f kafkaDockerfile .
+    docker run --name kafka-consumer --network flinkplayground_projectnetwork -v .:/data -it kafka-sumer-img bash
+    # sudo docker compose -f docker-compose.yml up -d consumer
+    # docker exec -it kafka-consumer bash -c "python /app/kafkaConsumer.py"   
+
 # Build the Flink job Docker image
 build-docker-image:
     docker build -t your-flink-job .
@@ -28,3 +46,6 @@ run-workflow: build-docker-image run-flink-cluster run-flink-job monitor-flink-c
 # Clean up everything
 clean: clean-docker
 
+clean-topic:
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --delete --topic in-topic --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"

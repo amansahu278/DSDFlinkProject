@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  zookeeper:
+    image: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - projectnetwork
+
+  kafka:
+    image: ubuntu/kafka
+    container_name: kafka-broker
+    ports:
+      - "9092:9092"
+    volumes:
+      - .:/data/
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - projectnetwork
+
+  # producer:
+  #   container_name: kafka-producer
+  #   build:
+  #     context: .
+  #     dockerfile: kafkaDockerfile
+  #   depends_on:
+  #     - zookeeper
+  #     - kafka
+
+  # consumer:
+  #   container_name: kafka-consumer
+  #   build:
+  #     context: .
+  #     dockerfile: kafkaDockerfile
+  #   depends_on:
+  #     - zookeeper
+  #     - kafka
+  #     - producer
+
+networks:
+  projectnetwork:
+    driver: bridge

@@ -1,0 +1,14 @@
+FROM python:3.11.7
+
+USER root
+
+WORKDIR /data
+
+RUN apt-get update && \
+    apt-get install -y iputils-ping && \
+    apt-get install -y libgl1-mesa-glx && \
+    rm -rf /var/lib/apt/lists/*
+COPY kafkaRequirements.txt .
+RUN pip install -r kafkaRequirements.txt
+
+CMD [ "bash" ]
