@@ -1,0 +1,39 @@
+FROM flink:latest
+
+USER root
+ENV PYTHON_VER=3.8.18
+
+# # Create a symbolic link for Python 3.8 to make it the default python
+# RUN ln -s /usr/bin/python3.8 /usr/bin/python
+RUN apt-get update && \
+    apt-get install -y openjdk-11-jdk-headless
+
+RUN apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev libffi-dev lzma liblzma-dev && \
+  wget https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz && \
+  tar -xvf Python-${PYTHON_VER}.tgz && \
+  cd Python-${PYTHON_VER} && \
+  ./configure --without-tests --enable-shared && \
+  make -j4 && \
+  make install && \
+  ldconfig /usr/local/lib && \
+  cd .. && rm -f Python-${PYTHON_VER}.tgz && rm -rf Python-${PYTHON_VER} && \
+  ln -s /usr/local/bin/python3 /usr/local/bin/python && \
+  ln -s /usr/local/bin/pip3 /usr/local/bin/pip && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64
+
+# Install Python development tools
+# RUN apt-get install -y python3.8-dev python3-pip
+
+WORKDIR /opt/flink/
+
+COPY flinkRequirements.txt .
+
+RUN pip install -r flinkRequirements.txt
+
+# Set the entry point to run the job
+# ENTRYPOINT ["flink", "run", "-m", "jobmanager:8081", "-c", "your.package.YourJobClass", "/job/pyflink_job.py"]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+CMD [ "ls" ]

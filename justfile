@@ -20,20 +20,48 @@ setup-kafka-consumer:
 
 # Build the Flink job Docker image
 build-docker-image:
-    docker build -t your-flink-job .
+    docker build -t projectflinkimage -f pyflinkJobDockerfile .
 
-# Run Flink cluster in Docker
-run-flink-cluster:
-    docker run -d --name flink-cluster -p 8081:8081 apache/flink:1.14.3-scala_2.12-java11 standalone-jobmanager
-    docker exec -it flink-cluster bash -c "/opt/flink/bin/taskmanager.sh start"
+# Run Flink cluster in Docker i.e. start the jobmanager
+run-jobmanager:
+    docker run -d \
+    --name jobmanager \
+    -p 8081:8081 \
+    --expose 6123 \
+    --network projectnetwork \
+    -v .:/data \
+    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
+    projectflinkimage \
+    /opt/flink/bin/jobmanager.sh start
 
+    # docker exec -it flink-cluster bash -c "/opt/flink/bin/taskmanager.sh start"
+
+# Run flink taskmanager(s)
+run-taskmanager:
+    docker run -d \
+    --name taskmanager \
+    -p 8081:8081 \
+    --expose 6121 \
+    --expose 6122 \
+    --network projectnetwork \
+    -v .:/data \
+    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
+    projectflinkimage \
+    /opt/flink/bin/taskmanager.sh start jobmanager:6123
+ 
 # Run Flink job in Docker
 run-flink-job:
-    docker run -d --name your-job-container your-flink-job
+    docker run -d \
+    --name flink-job-container \ 
+    --network projectnetwork \
+    -v .:/data \
+    projectflinkimage \
+    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
+    /opt/flink/bin/flink run --python pyflinkKafkaJob.py --jarfile="/data/fatjar.jar"
 
 # Monitor Flink cluster
 monitor-flink-cluster:
-    echo "Access Flink dashboard at http://localhost:8081"
+    echo "Access Flink dashboard at http://jobmanager:8081"
 
 # Clean up Docker containers
 clean-docker:
@@ -41,7 +69,7 @@ clean-docker:
     docker rm flink-cluster your-job-container
 
 # Complete workflow
-run-workflow: build-docker-image run-flink-cluster run-flink-job monitor-flink-cluster
+run-workflow: build-docker-image run-jobmanager run-taskmanager run-flink-job monitor-flink-cluster
 
 # Clean up everything
 clean: clean-docker
