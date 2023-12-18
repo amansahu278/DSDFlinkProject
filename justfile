@@ -3,14 +3,27 @@
 # Get the kafka running
 setup-kafka:
     sudo docker compose -f docker-compose.yml up zookeeper kafka
-    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
-    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic out-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092" 
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in1-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in2-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in3-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+
+setup-kafka-topics:
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in1-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in2-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in3-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
+
+delete-kafka-topics:
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --delete --topic in1-topic --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --delete --topic in2-topic --bootstrap-server localhost:9092"
+    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --delete --topic in3-topic --bootstrap-server localhost:9092"
 
 setup-kafka-producer:
     docker build -t kafka-sumer-img -f kafkaDockerfile .
-    docker run --name kafka-producer --network flinkplayground_projectnetwork -p 8001:8001 -v .:/data -it kafka-sumer-img bash
+    docker run --name kafka-producer --network flinkplayground_projectnetwork -p 8001:8001 -v .:/data -d kafka-sumer-img bash
     # sudo docker compose -f docker-compose.yml up producer
-    # docker exec -it kafka-consumer bash -c "python /app/kafkaProducer.py"
+
+start-producing NUMBER:
+    docker exec -it kafka-consumer bash -c "python /data/kafkaProducer.py {{NUMBER}}"
 
 setup-kafka-consumer:
     docker build -t kafka-sumer-img -f kafkaDockerfile .
@@ -24,40 +37,35 @@ build-docker-image:
 
 # Run Flink cluster in Docker i.e. start the jobmanager
 run-jobmanager:
-    docker run -d \
+    docker run -d -t \
     --name jobmanager \
+    --hostname jobmanager \
     -p 8081:8081 \
     --expose 6123 \
-    --network projectnetwork \
+    --network flinkplayground_projectnetwork \
     -v .:/data \
-    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
+    --env FLINK_PROPERTIES="jobmanager.rpc.port: 6123" \
     projectflinkimage \
-    /opt/flink/bin/jobmanager.sh start
-
-    # docker exec -it flink-cluster bash -c "/opt/flink/bin/taskmanager.sh start"
+    jobmanager
 
 # Run flink taskmanager(s)
-run-taskmanager:
-    docker run -d \
-    --name taskmanager \
-    -p 8081:8081 \
+run-taskmanager HOSTNAME:
+    docker run -d -t \
+    --name {{HOSTNAME}} \
+    --hostname {{HOSTNAME}} \
     --expose 6121 \
     --expose 6122 \
-    --network projectnetwork \
+    --network flinkplayground_projectnetwork \
     -v .:/data \
-    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
+    -v ./flink-conf.yaml:/opt/flink/conf/flink-conf.yaml \
     projectflinkimage \
-    /opt/flink/bin/taskmanager.sh start jobmanager:6123
+    taskmanager
  
 # Run Flink job in Docker
-run-flink-job:
-    docker run -d \
-    --name flink-job-container \ 
-    --network projectnetwork \
-    -v .:/data \
-    projectflinkimage \
-    --env FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
-    /opt/flink/bin/flink run --python pyflinkKafkaJob.py --jarfile="/data/fatjar.jar"
+run-flink-job NUMBER:
+    docker exec \
+    jobmanager bash -c \
+    "/opt/flink/bin/flink run --jarfile=/data/fatjar.jar --python /data/pyflinkKafkaJob.py {{NUMBER}}"
 
 # Monitor Flink cluster
 monitor-flink-cluster:
@@ -68,12 +76,3 @@ clean-docker:
     docker stop flink-cluster your-job-container
     docker rm flink-cluster your-job-container
 
-# Complete workflow
-run-workflow: build-docker-image run-jobmanager run-taskmanager run-flink-job monitor-flink-cluster
-
-# Clean up everything
-clean: clean-docker
-
-clean-topic:
-    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --delete --topic in-topic --bootstrap-server localhost:9092"
-    docker exec -it kafka-broker bash -c "/opt/kafka/bin/kafka-topics.sh --create --topic in-topic --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092"
